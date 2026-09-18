@@ -1,0 +1,41 @@
+.mmm-showhtml-wrapper {
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.mmm-showhtml-title {
+  font-weight: bold;
+  margin-bottom: 8px;
+  color: #ffffff;
+  text-align: left;
+}
+
+.mmm-showhtml-iframe {
+  width: 100%;
+  border: none;
+  background: transparent;
+  display: block;
+  overflow: hidden;
+}
+
+.mmm-showhtml-error-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 10px;
+}
+
+.mmm-showhtml-nophoto {
+  max-width: 120px;
+  max-height: 120px;
+  opacity: 0.8;
+  margin-bottom: 8px;
+}
+
+.mmm-showhtml-errortext {
+  color: #ff5555;
+  font-size: 12px;
+  text-align: center;
+  font-family: sans-serif;
+}

@@ -1,5 +1,9 @@
 .mmm-showhtml-wrapper {
   box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   overflow: hidden;
 }
 
@@ -7,15 +11,18 @@
   font-weight: bold;
   margin-bottom: 8px;
   color: #ffffff;
-  text-align: left;
+  text-align: center;
 }
 
-.mmm-showhtml-iframe {
+.mmm-showhtml-content {
+  display: flex;
+  justify-content: center;
   width: 100%;
-  border: none;
-  background: transparent;
-  display: block;
-  overflow: hidden;
+  overflow-x: auto;
+}
+
+.mmm-showhtml-content table#sheet-table {
+  margin: 0 auto !important;
 }
 
 .mmm-showhtml-error-container {

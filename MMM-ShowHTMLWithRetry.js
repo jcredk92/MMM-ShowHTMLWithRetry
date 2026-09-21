@@ -1,12 +1,15 @@
 Module.register("MMM-ShowHTMLWithRetry", {
   defaults: {
     title: "",
-    titleFontSize: "16px",
+    titleFontSize: "18px",
     url: "",
     refreshInterval: 15 * 60 * 1000,
     retryInterval: 1 * 60 * 1000,
     width: "100%",
     height: "auto",
+    scaleGrid: 100,
+    scaleText: 100,
+    showInfo: "n",
     noPhotoPath: "modules/MMM-ShowHTMLWithRetry/images/NoPhoto.png"
   },
 
@@ -15,94 +18,122 @@ Module.register("MMM-ShowHTMLWithRetry", {
   },
 
   start: function () {
-    Log.info(`Starting module: ${this.name}`);
-    this.htmlContent = null;
-    this.errorMessage = null;
-    this.loadedOnce = false;
+    this.loadedContent = null;
+    this.isError = false;
+    this.errorMessage = "";
+    this.retryTimer = null;
+    this.refreshTimer = null;
 
     if (this.config.url) {
-      this.getData();
-    } else {
-      this.errorMessage = "Configuration error: 'url' parameter is missing.";
-      this.updateDom();
+      this.fetchData();
+      this.scheduleRefresh();
     }
   },
 
-  getData: function () {
+  getFormattedUrl: function () {
+    let fetchUrl = this.config.url;
+    if (!fetchUrl) return "";
+
+    if (!fetchUrl.includes("scaleGrid=")) {
+      fetchUrl += `&scaleGrid=${this.config.scaleGrid}`;
+    }
+    if (!fetchUrl.includes("scaleText=")) {
+      fetchUrl += `&scaleText=${this.config.scaleText}`;
+    }
+    if (!fetchUrl.includes("showInfo=")) {
+      fetchUrl += `&showInfo=${this.config.showInfo}`;
+    }
+    return fetchUrl;
+  },
+
+  fetchData: function () {
+    const finalUrl = this.getFormattedUrl();
     this.sendSocketNotification("FETCH_HTML", {
-      url: this.config.url,
-      identifier: this.identifier
+      id: this.identifier,
+      url: finalUrl
     });
   },
 
-  socketNotificationReceived: function (notification, payload) {
-    if (payload.identifier !== this.identifier) return;
+  scheduleRefresh: function () {
+    const self = this;
+    if (this.refreshTimer) clearInterval(this.refreshTimer);
 
-    if (notification === "HTML_FETCHED") {
-      this.htmlContent = payload.data;
-      this.errorMessage = null;
-      this.loadedOnce = true;
-      this.updateDom();
-      this.scheduleUpdate(this.config.refreshInterval);
-
-    } else if (notification === "HTML_FETCH_ERROR") {
-      Log.error(`[${this.name}] Fetch error: ${payload.error}`);
-      
-      if (!this.loadedOnce) {
-        this.errorMessage = payload.error;
-        this.updateDom();
-      }
-
-      this.scheduleUpdate(this.config.retryInterval);
-    }
+    this.refreshTimer = setInterval(function () {
+      self.fetchData();
+    }, this.config.refreshInterval);
   },
 
-  scheduleUpdate: function (delay) {
-    clearTimeout(this.updateTimer);
-    this.updateTimer = setTimeout(() => {
-      this.getData();
-    }, delay);
+  scheduleRetry: function () {
+    const self = this;
+    if (this.retryTimer) clearTimeout(this.retryTimer);
+
+    this.retryTimer = setTimeout(function () {
+      self.fetchData();
+    }, this.config.retryInterval);
+  },
+
+  socketNotificationReceived: function (notification, payload) {
+    if (payload.id !== this.identifier) return;
+
+    if (notification === "HTML_FETCHED") {
+      if (this.retryTimer) clearTimeout(this.retryTimer);
+      this.loadedContent = payload.html;
+      this.isError = false;
+      this.errorMessage = "";
+      this.updateDom(300);
+
+    } else if (notification === "HTML_FETCH_ERROR") {
+      this.isError = true;
+      this.errorMessage = payload.error;
+      this.updateDom(300);
+      this.scheduleRetry();
+    }
   },
 
   getDom: function () {
     const wrapper = document.createElement("div");
     wrapper.className = "mmm-showhtml-wrapper";
-    wrapper.style.width = this.config.width;
-    wrapper.style.height = this.config.height;
+
+    if (this.config.width) {
+      wrapper.style.width = this.config.width;
+    }
+    if (this.config.height && this.config.height !== "auto") {
+      wrapper.style.height = this.config.height;
+    }
 
     if (this.config.title) {
       const titleEl = document.createElement("div");
       titleEl.className = "mmm-showhtml-title";
       titleEl.style.fontSize = this.config.titleFontSize;
-      titleEl.innerText = this.config.title;
+      titleEl.innerHTML = this.config.title;
       wrapper.appendChild(titleEl);
     }
 
-    if (this.htmlContent) {
-      const contentEl = document.createElement("div");
-      contentEl.className = "mmm-showhtml-content";
-      contentEl.innerHTML = this.htmlContent;
-      wrapper.appendChild(contentEl);
+    if (this.isError) {
+      const errContainer = document.createElement("div");
+      errContainer.className = "mmm-showhtml-error-container";
 
-    } else if (this.errorMessage) {
-      const errorContainer = document.createElement("div");
-      errorContainer.className = "mmm-showhtml-error-container";
-
-      const imgEl = document.createElement("img");
-      imgEl.src = this.config.noPhotoPath;
-      imgEl.className = "mmm-showhtml-nophoto";
+      const img = document.createElement("img");
+      img.src = this.config.noPhotoPath;
+      img.className = "mmm-showhtml-nophoto";
+      errContainer.appendChild(img);
 
       const errText = document.createElement("div");
       errText.className = "mmm-showhtml-errortext";
-      errText.innerText = this.errorMessage;
+      errText.innerText = this.errorMessage || "Erreur de chargement";
+      errContainer.appendChild(errText);
 
-      errorContainer.appendChild(imgEl);
-      errorContainer.appendChild(errText);
-      wrapper.appendChild(errorContainer);
+      wrapper.appendChild(errContainer);
+
+    } else if (this.loadedContent) {
+      const contentEl = document.createElement("div");
+      contentEl.className = "mmm-showhtml-content";
+      contentEl.innerHTML = this.loadedContent;
+      wrapper.appendChild(contentEl);
 
     } else {
       const loadingEl = document.createElement("div");
-      loadingEl.className = "dimmed light small";
+      loadingEl.className = "mmm-showhtml-errortext";
       loadingEl.innerText = "Chargement...";
       wrapper.appendChild(loadingEl);
     }
